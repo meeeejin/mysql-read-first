@@ -251,6 +251,12 @@ static const ulint BUF_PAGE_READ_MAX_RETRIES = 100;
 /** The buffer pools of the database */
 UNIV_INTERN buf_pool_t*	buf_pool_ptr;
 
+/* mijin */
+UNIV_INTERN hash_table_t*   spf_extension;
+UNIV_INTERN ulint           spf_extension_size;
+UNIV_INTERN rw_lock_t*      spf_extension_hash_lock;
+/* end */
+
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 static ulint	buf_dbg_counter	= 0; /*!< This is used to insert validation
 					operations in execution in the
@@ -1461,6 +1467,25 @@ buf_pool_init(
 	buf_LRU_old_ratio_update(100 * 3/ 8, FALSE);
 
 	btr_search_sys_create(buf_pool_get_curr_size() / sizeof(void*) / 64);
+
+    /* mijin */
+    if (srv_use_spf_extension) {
+       /* Calculate spf_extension_size. */
+        spf_extension_size = srv_spf_extension_size / UNIV_PAGE_SIZE;
+        ib_logf(IB_LOG_LEVEL_INFO,
+                "Number of page entry for single page flush = %lu", spf_extension_size);
+    
+        /* Create a hash table. */
+        spf_extension = ha_create(2 * spf_extension_size,
+                                srv_n_page_hash_locks,
+                                MEM_HEAP_FOR_PAGE_HASH,
+                                SYNC_BUF_PAGE_HASH);
+
+        /* Create a rw_lock for spf_extension hash table. */
+        spf_extension_hash_lock = static_cast<rw_lock_t*>(mem_alloc(sizeof(rw_lock_t)));
+        rw_lock_create(buf_block_lock_key, spf_extension_hash_lock, SYNC_LEVEL_VARYING);
+    }
+    /* end */
 
 	return(DB_SUCCESS);
 }

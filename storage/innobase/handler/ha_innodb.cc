@@ -155,6 +155,11 @@ static char*	innobase_disable_monitor_counter	= NULL;
 static char*	innobase_reset_monitor_counter		= NULL;
 static char*	innobase_reset_all_monitor_counter	= NULL;
 
+/* mijin */
+static my_bool      innobase_use_spf_extension = FALSE;
+static long long    innobase_spf_extension_size = 0;
+/* end */
+
 /* The highest file format being used in the database. The value can be
 set by user, however, it will be adjusted to the newer file format if
 a table of such format is created/opened. */
@@ -2923,6 +2928,11 @@ mem_free_and_error:
 		my_free(internal_innobase_data_file_path);
 		goto error;
 	}
+
+    /* mijin */
+    srv_use_spf_extension = (ibool) innobase_use_spf_extension;
+    srv_spf_extension_size = (ulint) innobase_spf_extension_size;
+    /* end */
 
 	/* -------------- All log files ---------------------------*/
 
@@ -15695,6 +15705,18 @@ static MYSQL_SYSVAR_STR(data_home_dir, innobase_data_home_dir,
   "The common part for InnoDB table spaces.",
   NULL, NULL, NULL);
 
+/* mijin */
+static MYSQL_SYSVAR_BOOL(use_spf_extension, innobase_use_spf_extension,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
+  "Enable single page flush extension (disenabled by default).",
+  NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_LONGLONG(spf_extension_size, innobase_spf_extension_size,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "The size of single page flush extension.",
+  NULL, NULL, 32*1024*1024L, 5*1024*1024L, LONGLONG_MAX, 1024*1024L);
+/* end */
+
 static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Enable InnoDB doublewrite buffer (enabled by default). "
@@ -16494,6 +16516,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_level),
   MYSQL_SYSVAR(data_file_path),
   MYSQL_SYSVAR(data_home_dir),
+  /* mijin */
+  MYSQL_SYSVAR(use_spf_extension),
+  MYSQL_SYSVAR(spf_extension_size),
+  /* end */
   MYSQL_SYSVAR(doublewrite),
   MYSQL_SYSVAR(api_enable_binlog),
   MYSQL_SYSVAR(api_enable_mdl),

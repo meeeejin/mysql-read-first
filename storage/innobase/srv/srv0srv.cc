@@ -180,6 +180,11 @@ the user from forgetting the 'newraw' keyword to my.cnf */
 
 UNIV_INTERN ibool	srv_created_new_raw	= FALSE;
 
+/* mijin */
+UNIV_INTERN ibool   srv_use_spf_extension = FALSE;
+UNIV_INTERN ulint   srv_spf_extension_size = 0;
+/* end */
+
 UNIV_INTERN char*	srv_log_group_home_dir	= NULL;
 
 UNIV_INTERN ulong	srv_n_log_files		= SRV_N_LOG_FILES_MAX;

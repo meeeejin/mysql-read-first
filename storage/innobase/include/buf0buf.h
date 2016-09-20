@@ -84,6 +84,13 @@ Created 11/5/1995 Heikki Tuuri
 
 extern	buf_pool_t*	buf_pool_ptr;	/*!< The buffer pools
 					of the database */
+
+/* mijin */
+extern  hash_table_t*   spf_extension;
+extern  ulint           spf_extension_size;
+extern  rw_lock_t*      spf_extension_hash_lock;
+/* end */
+
 #ifdef UNIV_DEBUG
 extern ibool		buf_debug_prints;/*!< If this is set TRUE, the program
 					prints info whenever read or flush

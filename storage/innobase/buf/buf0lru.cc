@@ -1867,6 +1867,7 @@ func_exit:
 	ut_ad(buf_page_can_relocate(bpage));
 
 	if (!buf_LRU_block_remove_hashed(bpage, zip)) {
+        fprintf(stderr, "buf_block_file_page\n");
 		return(true);
 	}
 
@@ -1884,6 +1885,7 @@ func_exit:
 	if b == NULL then it was a regular page that has been freed */
 
 	if (b) {
+        fprintf(stderr, "compressed page with an uncompressed frame\n");
 		buf_page_t*	prev_b	= UT_LIST_GET_PREV(LRU, b);
 
 		rw_lock_x_lock(hash_lock);
