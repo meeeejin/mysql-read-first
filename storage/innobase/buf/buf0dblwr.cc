@@ -958,7 +958,9 @@ flush:
 	datafiles when the whole batch has been processed. */
 	os_aio_simulated_wake_handler_threads();
 
-    fprintf(stderr, "buffered page flush = %lu\n", first_free);
+    /* mijin */
+    //fprintf(stderr, "buffered page flush = %lu\n", first_free);
+    /* end */
 }
 
 /********************************************************************//**
@@ -1170,6 +1172,8 @@ retry:
 	blocks. Next do the write to the intended position. */
 	buf_dblwr_write_block_to_datafile(bpage, sync);
 
-    fprintf(stderr, "single page flush\n");
+    /* mijin */
+    //fprintf(stderr, "single page flush\n");
+    /* end */
 }
 #endif /* !UNIV_HOTBACKUP */

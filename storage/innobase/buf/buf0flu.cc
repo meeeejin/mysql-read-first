@@ -949,6 +949,13 @@ buf_flush_write_block_low(
 		break;
 	}
 
+    /* mijin */
+    /* Insert target page into the hash table. */
+    rw_lock_x_lock(spf_extension_hash_lock);
+    HASH_INSERT(buf_page_t, hash, spf_extension, fold, bpage);
+    rw_lock_x_unlock(spf_extension_hash_lock);
+    /* end */
+
 	if (!srv_use_doublewrite_buf || !buf_dblwr) {
 		fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
 		       sync, buf_page_get_space(bpage), zip_size,
