@@ -949,13 +949,6 @@ buf_flush_write_block_low(
 		break;
 	}
 
-    /* mijin */
-    /* Insert target page into the hash table. */
-    rw_lock_x_lock(spf_extension_hash_lock);
-    HASH_INSERT(buf_page_t, hash, spf_extension, fold, bpage);
-    rw_lock_x_unlock(spf_extension_hash_lock);
-    /* end */
-
 	if (!srv_use_doublewrite_buf || !buf_dblwr) {
 		fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
 		       sync, buf_page_get_space(bpage), zip_size,
@@ -963,7 +956,19 @@ buf_flush_write_block_low(
 		       zip_size ? zip_size : UNIV_PAGE_SIZE,
 		       frame, bpage);
 	} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
-		buf_dblwr_write_single_page(bpage, sync);
+        /* mijin */
+        //if (srv_use_spf_extension) {
+            /* Insert target page into the hash table. */
+            /*rw_lock_x_lock(spf_extension_hash_lock);
+            HASH_INSERT(buf_page_t, hash, spf_extension, fold, bpage);
+            rw_lock_x_unlock(spf_extension_hash_lock);*/
+
+            fprintf(stderr, "Insertion succeeded. (space, offset) = (%u, %u)\n",
+                            bpage->space, bpage->offset);
+        //} else {
+        /* end */
+            buf_dblwr_write_single_page(bpage, sync);
+        //}
 	} else {
 		ut_ad(!sync);
 		buf_dblwr_add_to_batch(bpage);

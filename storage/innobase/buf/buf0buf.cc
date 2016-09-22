@@ -252,9 +252,10 @@ static const ulint BUF_PAGE_READ_MAX_RETRIES = 100;
 UNIV_INTERN buf_pool_t*	buf_pool_ptr;
 
 /* mijin */
-UNIV_INTERN hash_table_t*   spf_extension;
-UNIV_INTERN ulint           spf_extension_size;
-UNIV_INTERN rw_lock_t*      spf_extension_hash_lock;
+UNIV_INTERN hash_table_t*               spf_extension;
+UNIV_INTERN ulint                       spf_extension_size;
+UNIV_INTERN rw_lock_t*                  spf_extension_hash_lock;
+UNIV_INTERN UT_LIST_NODE_T(buf_page_t)  spf_extension_list;
 /* end */
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
@@ -1484,6 +1485,9 @@ buf_pool_init(
         /* Create a rw_lock for spf_extension hash table. */
         spf_extension_hash_lock = static_cast<rw_lock_t*>(mem_alloc(sizeof(rw_lock_t)));
         rw_lock_create(buf_block_lock_key, spf_extension_hash_lock, SYNC_LEVEL_VARYING);
+    
+        /* Initialize a flush list for single page flush. */
+        //UT_LIST_INIT(spf_extension_list);
     }
     /* end */
 
