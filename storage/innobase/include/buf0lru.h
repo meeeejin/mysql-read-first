@@ -249,6 +249,18 @@ buf_LRU_print(void);
 /*===============*/
 #endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
 
+/* mijin */
+/**************************************************************//**
+Create a new metadata entry for single page flush cache. */
+UNIV_INTERN
+void
+create_new_spf_metadata(
+/*===================*/
+    ulint space,        /*!< in: space id */
+    ulint offset,       /*!< in: page number */
+    ulint meta_idx);    /*!< in: metadata index */
+/* end */
+
 /** @name Heuristics for detecting index scan @{ */
 /** The denominator of buf_pool->LRU_old_ratio. */
 #define BUF_LRU_OLD_RATIO_DIV	1024

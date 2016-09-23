@@ -244,8 +244,8 @@ extern ulint	srv_last_file_size_max;
 extern char*	srv_log_group_home_dir;
 
 /* mijin */
-extern ibool    srv_use_spf_extension;
-extern ulint    srv_spf_extension_size;
+extern ibool    srv_use_spf_cache;
+extern ulint    srv_spf_cache_size;
 /* end */
 
 #ifndef UNIV_HOTBACKUP

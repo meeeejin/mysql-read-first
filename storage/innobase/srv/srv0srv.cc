@@ -181,8 +181,8 @@ the user from forgetting the 'newraw' keyword to my.cnf */
 UNIV_INTERN ibool	srv_created_new_raw	= FALSE;
 
 /* mijin */
-UNIV_INTERN ibool   srv_use_spf_extension = FALSE;
-UNIV_INTERN ulint   srv_spf_extension_size = 0;
+UNIV_INTERN ibool   srv_use_spf_cache = FALSE;
+UNIV_INTERN ulint   srv_spf_cache_size = 0;
 /* end */
 
 UNIV_INTERN char*	srv_log_group_home_dir	= NULL;

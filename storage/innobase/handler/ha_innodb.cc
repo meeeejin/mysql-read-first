@@ -156,8 +156,8 @@ static char*	innobase_reset_monitor_counter		= NULL;
 static char*	innobase_reset_all_monitor_counter	= NULL;
 
 /* mijin */
-static my_bool      innobase_use_spf_extension = FALSE;
-static long long    innobase_spf_extension_size = 0;
+static my_bool      innobase_use_spf_cache = FALSE;
+static long long    innobase_spf_cache_size = 0;
 /* end */
 
 /* The highest file format being used in the database. The value can be
@@ -2930,8 +2930,8 @@ mem_free_and_error:
 	}
 
     /* mijin */
-    srv_use_spf_extension = (ibool) innobase_use_spf_extension;
-    srv_spf_extension_size = (ulint) innobase_spf_extension_size;
+    srv_use_spf_cache = (ibool) innobase_use_spf_cache;
+    srv_spf_cache_size = (ulint) innobase_spf_cache_size;
     /* end */
 
 	/* -------------- All log files ---------------------------*/
@@ -15706,14 +15706,14 @@ static MYSQL_SYSVAR_STR(data_home_dir, innobase_data_home_dir,
   NULL, NULL, NULL);
 
 /* mijin */
-static MYSQL_SYSVAR_BOOL(use_spf_extension, innobase_use_spf_extension,
+static MYSQL_SYSVAR_BOOL(use_spf_cache, innobase_use_spf_cache,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Enable single page flush extension (disenabled by default).",
+  "Enable single page flush cache (disabled by default).",
   NULL, NULL, FALSE);
 
-static MYSQL_SYSVAR_LONGLONG(spf_extension_size, innobase_spf_extension_size,
+static MYSQL_SYSVAR_LONGLONG(spf_cache_size, innobase_spf_cache_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "The size of single page flush extension.",
+  "The size of single page flush cache.",
   NULL, NULL, 32*1024*1024L, 5*1024*1024L, LONGLONG_MAX, 1024*1024L);
 /* end */
 
@@ -16517,8 +16517,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_file_path),
   MYSQL_SYSVAR(data_home_dir),
   /* mijin */
-  MYSQL_SYSVAR(use_spf_extension),
-  MYSQL_SYSVAR(spf_extension_size),
+  MYSQL_SYSVAR(use_spf_cache),
+  MYSQL_SYSVAR(spf_cache_size),
   /* end */
   MYSQL_SYSVAR(doublewrite),
   MYSQL_SYSVAR(api_enable_binlog),

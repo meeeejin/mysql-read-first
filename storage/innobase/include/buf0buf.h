@@ -86,10 +86,24 @@ extern	buf_pool_t*	buf_pool_ptr;	/*!< The buffer pools
 					of the database */
 
 /* mijin */
-extern  hash_table_t*               spf_extension;
-extern  ulint                       spf_extension_size;
-extern  rw_lock_t*                  spf_extension_hash_lock;
-extern  UT_LIST_NODE_T(buf_page_t)  spf_extension_list;
+extern  hash_table_t*   spf_cache;
+extern  ulint           spf_cache_size;
+extern  rw_lock_t*      spf_cache_hash_lock;
+extern  rw_lock_t*      spf_cache_meta_idx_lock;
+extern  byte*           spf_cache_buf;
+extern  ulint           spf_cache_meta_free_idx;
+extern  bool            spf_batch_running;
+
+/* The data structure of write cache metadata directory */
+struct spf_meta_dir_t {
+    ib_uint32_t     space;      /* tablespace id */
+    ib_uint32_t     offset;     /* page number */
+    spf_meta_dir_t* hash;       /* node used in chaining to spf_cache */
+    ulint           meta_no;    /* index of metadata directory */
+//    ib_mutex_t      mutex;      /* mutex for metadata entry */
+};
+
+extern  spf_meta_dir_t* spf_meta_dir;
 /* end */
 
 #ifdef UNIV_DEBUG

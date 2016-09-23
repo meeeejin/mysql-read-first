@@ -1968,13 +1968,13 @@ innobase_start_or_create_for_mysql(void)
 		"Initializing buffer pool, size = %.1f%c", size, unit);
 
     /* mijin */
-    if (srv_use_spf_extension) {
+    if (srv_use_spf_cache) {
         ib_logf(IB_LOG_LEVEL_INFO,
-                "The innodb_use_spf_extension option has been specified.");
+                "The innodb_use_spf_cache option has been specified.");
 
         ib_logf(IB_LOG_LEVEL_INFO,
-                "Extension pool size for single page flush = %lu",
-                srv_spf_extension_size);
+                "Cache size for single page flush = %lu",
+                srv_spf_cache_size);
     }
     /* end */
 

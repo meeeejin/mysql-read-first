@@ -957,18 +957,48 @@ buf_flush_write_block_low(
 		       frame, bpage);
 	} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
         /* mijin */
-        //if (srv_use_spf_extension) {
-            /* Insert target page into the hash table. */
-            /*rw_lock_x_lock(spf_extension_hash_lock);
-            HASH_INSERT(buf_page_t, hash, spf_extension, fold, bpage);
-            rw_lock_x_unlock(spf_extension_hash_lock);*/
+        if (srv_use_spf_cache) {
+            ulint fold;
+            ulint meta_idx;
 
-            fprintf(stderr, "Insertion succeeded. (space, offset) = (%u, %u)\n",
-                            bpage->space, bpage->offset);
-        //} else {
+            if (!spf_batch_running) {
+                /* Reserve metadata index. */
+                rw_lock_x_lock(spf_cache_meta_idx_lock);
+
+                meta_idx = spf_cache_meta_free_idx;
+                spf_cache_meta_free_idx += 1;
+
+                if (spf_cache_meta_free_idx == spf_cache_size) {
+                    spf_cache_meta_free_idx = 0;
+                    spf_batch_running = true;
+                }
+
+                rw_lock_x_unlock(spf_cache_meta_idx_lock);
+
+                /* Create a spf cache metadata entry. */
+                create_new_spf_metadata(bpage->space, bpage->offset, meta_idx);
+
+                fold = buf_page_address_fold(bpage->space, bpage->offset);
+
+                /* Insert target page into the hash table. */
+                rw_lock_x_lock(spf_cache_hash_lock);
+                HASH_INSERT(spf_meta_dir_t, hash, spf_cache, fold, &spf_meta_dir[meta_idx]);
+                rw_lock_x_unlock(spf_cache_hash_lock);
+
+                /* Copy the target page to the spf cache. */
+                memcpy(spf_cache_buf, bpage, UNIV_PAGE_SIZE); 
+
+                fprintf(stderr, "Insertion succeeded. (space, offset) = (%u, %u)\n",
+                                bpage->space, bpage->offset);
+            } else {
+                fprintf(stderr, "need to batch flushing\n");
+            }
+
+            buf_dblwr_write_single_page(bpage, sync);
+        } else {
         /* end */
             buf_dblwr_write_single_page(bpage, sync);
-        //}
+        }
 	} else {
 		ut_ad(!sync);
 		buf_dblwr_add_to_batch(bpage);

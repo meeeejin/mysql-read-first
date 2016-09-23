@@ -2741,4 +2741,23 @@ buf_LRU_print(void)
 	}
 }
 #endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
+
+/* mijin */
+/**************************************************************//**
+Create a new metadata entry for single page flush cache. */
+UNIV_INTERN
+void
+create_new_spf_metadata(
+/*===================*/
+    ulint space,        /*!< in: space id */
+    ulint offset,       /*!< in: page number */
+    ulint meta_idx)     /*!< in: metadata index */
+{
+    spf_meta_dir[meta_idx].space = space;
+    spf_meta_dir[meta_idx].offset = offset;
+    spf_meta_dir[meta_idx].hash = NULL;
+    spf_meta_dir[meta_idx].meta_no = meta_idx;
+}
+/* end */
+
 #endif /* !UNIV_HOTBACKUP */
