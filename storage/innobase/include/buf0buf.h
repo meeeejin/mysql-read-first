@@ -86,13 +86,7 @@ extern	buf_pool_t*	buf_pool_ptr;	/*!< The buffer pools
 					of the database */
 
 /* mijin */
-extern  hash_table_t*   spf_cache;
-extern  ulint           spf_cache_size;
 extern  rw_lock_t*      spf_cache_hash_lock;
-extern  rw_lock_t*      spf_cache_meta_idx_lock;
-extern  byte*           spf_cache_buf;
-extern  ulint           spf_cache_meta_free_idx;
-extern  bool            spf_batch_running;
 
 /* The data structure of write cache metadata directory */
 struct spf_meta_dir_t {
@@ -103,7 +97,22 @@ struct spf_meta_dir_t {
 //    ib_mutex_t      mutex;      /* mutex for metadata entry */
 };
 
+/** Control struct for the cache for single page flush */
+struct spf_cache_t {
+    ib_mutex_t      mutex; /*!< mutex protecting the first_free
+                    field and write_buf */
+    ulint           n_entry; /*!< the total page number of the cache */
+    ulint           first_free; /*!< first free position in write_buf
+                    measured in units of UNIV_PAGE_SIZE */
+    bool            batch_running; /*!< set to TRUE if currently a batch
+                    is being written */
+    byte*           write_buf; /*!< write buffer */
+    hash_table_t*   page_hash; /*!< hash table of buf_page_t or
+                    buf_block_t file pages */
+};
+
 extern  spf_meta_dir_t* spf_meta_dir;
+extern  spf_cache_t*    spf_cache;
 /* end */
 
 #ifdef UNIV_DEBUG

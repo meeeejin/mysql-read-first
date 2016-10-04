@@ -957,39 +957,44 @@ buf_flush_write_block_low(
 		       frame, bpage);
 	} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
         /* mijin */
-        if (srv_use_spf_cache) {
+        if (srv_use_spf_cache && sync) {
             ulint fold;
             ulint meta_idx;
 
-            if (!spf_batch_running) {
-                /* Reserve metadata index. */
-                rw_lock_x_lock(spf_cache_meta_idx_lock);
+            if (!spf_cache->batch_running) {
+                mutex_enter(&spf_cache->mutex);
 
-                meta_idx = spf_cache_meta_free_idx;
-                spf_cache_meta_free_idx += 1;
+                meta_idx = spf_cache->first_free;
+                spf_cache->first_free += 1;
 
-                if (spf_cache_meta_free_idx == spf_cache_size) {
-                    spf_cache_meta_free_idx = 0;
-                    spf_batch_running = true;
+                if (spf_cache->first_free == spf_cache->n_entry) {
+                    spf_cache->first_free = 0;
+                    spf_cache->batch_running = true;
+
+                    /* start batch flush.. */
                 }
 
-                rw_lock_x_unlock(spf_cache_meta_idx_lock);
-
-                /* Create a spf cache metadata entry. */
+                /* Create a metadata entry. */
                 create_new_spf_metadata(bpage->space, bpage->offset, meta_idx);
 
                 fold = buf_page_address_fold(bpage->space, bpage->offset);
 
                 /* Insert target page into the hash table. */
                 rw_lock_x_lock(spf_cache_hash_lock);
-                HASH_INSERT(spf_meta_dir_t, hash, spf_cache, fold, &spf_meta_dir[meta_idx]);
+                HASH_INSERT(spf_meta_dir_t, hash, spf_cache->page_hash,
+                            fold, &spf_meta_dir[meta_idx]);
                 rw_lock_x_unlock(spf_cache_hash_lock);
 
                 /* Copy the target page to the spf cache. */
-                memcpy(spf_cache_buf, bpage, UNIV_PAGE_SIZE); 
+                memcpy(spf_cache->write_buf + (meta_idx * UNIV_PAGE_SIZE),
+                        bpage, UNIV_PAGE_SIZE); 
 
-                fprintf(stderr, "Insertion succeeded. (space, offset) = (%u, %u)\n",
-                                bpage->space, bpage->offset);
+                fprintf(stderr, "Insertion succeeded. %lu: (space, offset) = (%u, %u)\n",
+                                meta_idx, bpage->space, bpage->offset);
+
+                mutex_exit(&spf_cache->mutex);
+
+                //buf_dblwr_add_to_batch(bpage);
             } else {
                 fprintf(stderr, "need to batch flushing\n");
             }
@@ -997,6 +1002,7 @@ buf_flush_write_block_low(
             buf_dblwr_write_single_page(bpage, sync);
         } else {
         /* end */
+            fprintf(stderr, "original route\n");
             buf_dblwr_write_single_page(bpage, sync);
         }
 	} else {
@@ -1004,14 +1010,16 @@ buf_flush_write_block_low(
 		buf_dblwr_add_to_batch(bpage);
 	}
 
-	/* When doing single page flushing the IO is done synchronously
-	and we flush the changes to disk only for the tablespace we
-	are working on. */
-	if (sync) {
-		ut_ad(flush_type == BUF_FLUSH_SINGLE_PAGE);
-		fil_flush(buf_page_get_space(bpage));
-		buf_page_io_complete(bpage);
-	}
+    //if (!srv_use_spf_cache) {
+        /* When doing single page flushing the IO is done synchronously
+        and we flush the changes to disk only for the tablespace we
+        are working on. */
+        if (sync) {
+            ut_ad(flush_type == BUF_FLUSH_SINGLE_PAGE);
+            fil_flush(buf_page_get_space(bpage));
+            buf_page_io_complete(bpage);
+        }
+    //}
 
 	/* Increment the counter of I/O operations used
 	for selecting LRU policy. */
@@ -2105,8 +2113,14 @@ buf_flush_LRU_tail(void)
 {
 	ulint	total_flushed = 0;
 
-	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
+    /* mijin */
+    /* Flush all pages in the spf_cache. */
+    if (spf_cache->batch_running) {
+        
+    } 
+    /* end */
 
+	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 		buf_pool_t*	buf_pool = buf_pool_from_array(i);
 		ulint		scan_depth;
 

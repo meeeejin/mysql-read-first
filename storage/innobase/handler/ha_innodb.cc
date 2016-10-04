@@ -15714,7 +15714,7 @@ static MYSQL_SYSVAR_BOOL(use_spf_cache, innobase_use_spf_cache,
 static MYSQL_SYSVAR_LONGLONG(spf_cache_size, innobase_spf_cache_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "The size of single page flush cache.",
-  NULL, NULL, 32*1024*1024L, 5*1024*1024L, LONGLONG_MAX, 1024*1024L);
+  NULL, NULL, 32*1024*1024L, 1*1024*1024L, LONGLONG_MAX, 1024*1024L);
 /* end */
 
 static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
