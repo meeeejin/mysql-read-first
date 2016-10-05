@@ -994,12 +994,12 @@ buf_flush_write_block_low(
 
                 mutex_exit(&spf_cache->mutex);
 
-                //buf_dblwr_add_to_batch(bpage);
+                buf_page_io_complete(bpage);
             } else {
                 fprintf(stderr, "need to batch flushing\n");
+                
+                buf_dblwr_write_single_page(bpage, sync);
             }
-
-            buf_dblwr_write_single_page(bpage, sync);
         } else {
         /* end */
             fprintf(stderr, "original route\n");
@@ -1010,7 +1010,8 @@ buf_flush_write_block_low(
 		buf_dblwr_add_to_batch(bpage);
 	}
 
-    //if (!srv_use_spf_cache) {
+    /* mijin */
+    if (!srv_use_spf_cache) {
         /* When doing single page flushing the IO is done synchronously
         and we flush the changes to disk only for the tablespace we
         are working on. */
@@ -1019,7 +1020,8 @@ buf_flush_write_block_low(
             fil_flush(buf_page_get_space(bpage));
             buf_page_io_complete(bpage);
         }
-    //}
+    }
+    /* end */
 
 	/* Increment the counter of I/O operations used
 	for selecting LRU policy. */
@@ -2059,7 +2061,6 @@ buf_flush_single_page_from_LRU(
 		return(FALSE);
 	}
 
-
 	ibool	freed = FALSE;
 
 	/* At this point the page has been written to the disk.
@@ -2099,6 +2100,48 @@ buf_flush_single_page_from_LRU(
 	return(freed);
 }
 
+/* mijin */
+/**********************************//**
+Flush all pages in the spf_cache. */
+UNIV_INTERN
+void
+flush_spf_cache(void)
+/*=================*/
+{
+    byte*   write_buf;
+    ulint   first_free;
+    ulint   len;
+
+    mutex_enter(&spf_cache->mutex);
+
+    if (spf_cache->first_free == 0) {
+        mutex_exit(&spf_cache->mutex);
+
+        return;
+    }
+
+    spf_cache->batch_running = true;
+    first_free = spf_cache->first_free;
+    
+    mutex_exit(&spf_cache->mutex);
+
+    write_buf = spf_cache->write_buf;
+
+    for (ulint i = 0; i < first_free ; i++) {
+        buf_page_t* bpage;
+
+        /* Add all pages in the cache to the doublewrite buffer. */
+        //bpage = (buf_page_t*)
+
+        buf_dblwr_add_to_batch(bpage);
+
+    }
+
+    buf_dblwr_flush_buffered_writes();
+
+}
+/* end */
+
 /*********************************************************************//**
 Clears up tail of the LRU lists:
 * Put replaceable pages at the tail of LRU to the free list
@@ -2115,9 +2158,25 @@ buf_flush_LRU_tail(void)
 
     /* mijin */
     /* Flush all pages in the spf_cache. */
-    if (spf_cache->batch_running) {
-        
-    } 
+    if (srv_use_spf_cache) {
+        ulint first_free = 0;
+
+        mutex_enter(&spf_cache->mutex);
+
+        if (spf_cache->first_free == 0) {
+            goto LRU_flush;
+        }
+
+        if (spf_cache->batch_running) {
+            
+        }
+        spf_cache->batch_running = true;
+        buf_dblwr_flush_buffered_writes();            
+
+
+LRU_flush:
+        mutex_exit(&spf_cache->mutex);
+    }
     /* end */
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
