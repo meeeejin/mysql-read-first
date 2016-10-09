@@ -1470,25 +1470,33 @@ buf_pool_init(
 
     /* mijin */
     if (srv_use_spf_cache) {
+        ulint size = sizeof(buf_page_t);
+
         /* Create and initialize a cache for single page flush. */
         spf_cache = (spf_cache_t*) mem_zalloc(sizeof(spf_cache_t));
 
         /* Initialize general fields. */
         spf_cache->batch_running = false;
-        spf_cache->first_free = 0;
-        spf_cache->write_buf = NULL;
+        spf_cache->use_first_block = true;
+        spf_cache->first_free1 = 0;
+        spf_cache->first_free2 = 0;
+        spf_cache->write_buf1 = NULL;
+        spf_cache->write_buf2 = NULL;
 
         mutex_create(buf_pool_mutex_key,
                 &spf_cache->mutex, SYNC_BUF_POOL);
 
         /* Calculate the number of cache entries of the spf cache. */
-        spf_cache->n_entry = srv_spf_cache_size / UNIV_PAGE_SIZE;
+        spf_cache->n_entry = (srv_spf_cache_size / UNIV_PAGE_SIZE) / 2;
         ib_logf(IB_LOG_LEVEL_INFO,
-                "The Number of the page entries for single page flush = %lu", spf_cache->n_entry);
+                "The total number of the page entries of spf_cache = %lu", spf_cache->n_entry * 2);
         
         /* Initialize the write buffer. */
-        spf_cache->write_buf = static_cast<byte*>(ut_malloc(UNIV_PAGE_SIZE * spf_cache->n_entry));
-        memset(spf_cache->write_buf, 0, UNIV_PAGE_SIZE * spf_cache->n_entry);
+        spf_cache->write_buf1 = (buf_page_t*) malloc(size * spf_cache->n_entry);
+        memset(spf_cache->write_buf1, 0, size * spf_cache->n_entry);
+        
+        spf_cache->write_buf2 = (buf_page_t*) malloc(size * spf_cache->n_entry);
+        memset(spf_cache->write_buf2, 0, size * spf_cache->n_entry);
         
         /* Create a hash table. */
         spf_cache->page_hash = ha_create(2 * spf_cache->n_entry,

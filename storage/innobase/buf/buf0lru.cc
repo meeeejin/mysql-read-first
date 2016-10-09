@@ -2757,6 +2757,7 @@ create_new_spf_metadata(
     spf_meta_dir[meta_idx].offset = offset;
     spf_meta_dir[meta_idx].hash = NULL;
     spf_meta_dir[meta_idx].meta_no = meta_idx;
+    spf_meta_dir[meta_idx].valid = true;
 }
 /* end */
 
