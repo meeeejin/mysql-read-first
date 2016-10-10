@@ -88,35 +88,39 @@ extern	buf_pool_t*	buf_pool_ptr;	/*!< The buffer pools
 /* mijin */
 extern  rw_lock_t*      spf_cache_hash_lock;
 
-/* The data structure of write cache metadata directory */
+/** The data structure of spf_cache metadata directory. */
 struct spf_meta_dir_t {
-    ib_uint32_t     space;      /* tablespace id */
-    ib_uint32_t     offset;     /* page number */
-    spf_meta_dir_t* hash;       /* node used in chaining to spf_cache */
-    ulint           meta_no;    /* index of metadata directory */
+    ib_mutex_t      mutex;      /*!< mutex protecting the metadata entry */
+    ib_uint32_t     space;      /*!< tablespace id */
+    ib_uint32_t     offset;     /*!< page number */
+    ulint           meta_no;    /*!< index of the metadata entry */
+    spf_meta_dir_t* hash;       /*!< node used in chaining to spf_cache */
     bool            valid;
-//    ib_mutex_t      mutex;      /* mutex for metadata entry */
+};
+
+/** This structure defines information we will fetch from spf_cache. */
+struct spf_cache_info_t {
+    ib_mutex_t  mutex;          /*!< mutex protecting the current_block field */
+    ulint       total_entry;    /*!< the total number of the entries of the cache */
+    ulint       current_block;  /*!< the cache block used to write the target pages */
 };
 
 /** Control struct for the cache for single page flush */
 struct spf_cache_t {
-    ib_mutex_t      mutex; /*!< mutex protecting the first_free
+    ib_mutex_t      mutex;      /*!< mutex protecting the first_free
                     field and write_buf */
-    ulint           n_entry; /*!< the total page number of the cache */
-    ulint           first_free1; /*!< first free position in write_buf
-                    measured in units of UNIV_PAGE_SIZE */
-    ulint           first_free2;
-    bool            use_first_block;
+    ulint           first_free; /*!< first free position in write_buf
+                    measured in units of buf_page_t */
     bool            batch_running; /*!< set to TRUE if currently a batch
                     is being written */
-    buf_page_t*     write_buf1; /*!< write buffer 1 */
-    buf_page_t*     write_buf2; /*!< write buffer 2*/
-    hash_table_t*   page_hash; /*!< hash table of buf_page_t or
+    buf_page_t*     write_buf;  /*!< write buffer */
+    hash_table_t*   page_hash;  /*!< hash table of buf_page_t or
                     buf_block_t file pages */
 };
 
 extern  spf_meta_dir_t* spf_meta_dir;
 extern  spf_cache_t*    spf_cache;
+extern  spf_cache_info_t* spf_cache_info;
 /* end */
 
 #ifdef UNIV_DEBUG

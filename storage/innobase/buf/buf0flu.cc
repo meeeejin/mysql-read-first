@@ -960,48 +960,45 @@ buf_flush_write_block_low(
         if (srv_use_spf_cache && sync) {
             ulint fold;
             ulint meta_idx;
-            ulint size = sizeof(buf_page_t);
+            ulint cache_idx;
+            ulint remain;
+            ulint size = sizeof(bpage);
 
-            mutex_enter(&spf_cache->mutex);
+            mutex_enter(&spf_cache_info->mutex);
+            cache_idx = spf_cache_info->current_block;
+            mutex_exit(&spf_cache_info->mutex);
 
-            if (spf_cache->use_first_block) {
-                meta_idx = spf_cache->first_free1;
-                spf_cache->first_free1 += 1;
+            remain = cache_idx * (spf_cache_info->total_entry / 2);
 
-                if (spf_cache->first_free1 == spf_cache->n_entry) {
-                    fprintf(stderr, "spf_cache1 is full!\n");
-                }
-            } else {
-                meta_idx = spf_cache->first_free2;
-                spf_cache->first_free2 += 1;
+            mutex_enter(&spf_cache[cache_idx].mutex);
 
-                if (spf_cache->first_free2 == spf_cache->n_entry) {
-                    fprintf(stderr, "spf_cache2 is full!\n");
-                }
+            meta_idx = spf_cache[cache_idx].first_free;
+            spf_cache[cache_idx].first_free += 1;
+
+            if (spf_cache[cache_idx].first_free == (spf_cache_info->total_entry / 2)) {
+                fprintf(stderr, "spf_cache %lu is full!\n", cache_idx);
             }
 
             /* Create a metadata entry. */
-            create_new_spf_metadata(bpage->space, bpage->offset, meta_idx);
+            create_new_spf_metadata(bpage->space, bpage->offset, meta_idx + remain);
 
             fold = buf_page_address_fold(bpage->space, bpage->offset);
 
             /* Insert target page into the hash table. */
-            rw_lock_x_lock(spf_cache_hash_lock);
-            HASH_INSERT(spf_meta_dir_t, hash, spf_cache->page_hash,
-                    fold, &spf_meta_dir[meta_idx]);
-            rw_lock_x_unlock(spf_cache_hash_lock);
+            rw_lock_x_lock(&spf_cache_hash_lock[cache_idx]);
+            HASH_INSERT(spf_meta_dir_t, hash, spf_cache[cache_idx].page_hash,
+                    fold, &spf_meta_dir[meta_idx + remain]);
+            rw_lock_x_unlock(&spf_cache_hash_lock[cache_idx]);
+
+            bpage->flush_type = BUF_FLUSH_LRU;
 
             /* Copy the target page to the spf cache. */
-            if (spf_cache->use_first_block) {
-                memcpy(spf_cache->write_buf1 + (meta_idx * size), bpage, size); 
-            } else {
-                memcpy(spf_cache->write_buf2 + (meta_idx * size), bpage, size); 
-            }
+            memcpy(spf_cache[cache_idx].write_buf + (meta_idx * size), bpage, size); 
 
-            fprintf(stderr, "Insertion succeeded. %lu: (space, offset) = (%u, %u)\n",
-                    meta_idx, bpage->space, bpage->offset);
+            fprintf(stderr, "Insertion succeeded. %lu - %lu: (space, offset) = (%u, %u)\n",
+                    cache_idx, meta_idx, bpage->space, bpage->offset);
 
-            mutex_exit(&spf_cache->mutex);
+            mutex_exit(&spf_cache[cache_idx].mutex);
 
             buf_page_io_complete(bpage);
         } else {
@@ -2113,41 +2110,58 @@ flush_spf_cache(void)
 /*=================*/
 {
     ulint   first_free;
+    ulint   cache_idx;
+    ulint   i;
+    ulint   offset;
+    ulint   fold;
+    ulint   meta_idx;
     buf_page_t* write_buf;
+    
+    mutex_enter(&spf_cache_info->mutex);
 
-    mutex_enter(&spf_cache->mutex);
+    cache_idx = spf_cache_info->current_block;
+    if (cache_idx == 0) {
+        spf_cache_info->current_block = 1;
+    } else {
+        spf_cache_info->current_block = 0;
+    }
+    
+    mutex_exit(&spf_cache_info->mutex);
+
+    mutex_enter(&spf_cache[cache_idx].mutex);
 
     /* The cache is empty. Therefore, there is no need to flush the cache. */
-    if (spf_cache->use_first_block) {
-        if (spf_cache->first_free1 == 0) {
-            mutex_exit(&spf_cache->mutex);
-            return;
-        }
-    } else {
-        if (spf_cache->first_free2 == 0) {
-            mutex_exit(&spf_cache->mutex);
-            return;
-        }
+    if (spf_cache[cache_idx].first_free == 0) {
+        mutex_exit(&spf_cache[cache_idx].mutex);
+        return;
     }
 
     /* Start batch flush. */
-    spf_cache->batch_running = true;
+    spf_cache[cache_idx].batch_running = true;
 
-    if (spf_cache->use_first_block) {
-        spf_cache->use_first_block = false;
-        first_free = spf_cache->first_free1;
-        write_buf = spf_cache->write_buf1;
-    } else {
-        spf_cache->use_first_block = true;
-        first_free = spf_cache->first_free2;
-        write_buf = spf_cache->write_buf2;
-    }
+    first_free = spf_cache[cache_idx].first_free;
+    write_buf = spf_cache[cache_idx].write_buf;
     
-    mutex_exit(&spf_cache->mutex);
+    mutex_exit(&spf_cache[cache_idx].mutex);
 
+    offset = cache_idx * (spf_cache_info->total_entry / 2);
+    
     /* Add all pages in the cache to the doublewrite buffer. */
-    for (ulint i = 0; i < first_free ; i++) {
+    for (i = 0; i < first_free; i++) {
         buf_dblwr_add_to_batch(&write_buf[i]);
+        
+        meta_idx = i + offset;
+
+        fold = buf_page_address_fold(spf_meta_dir[meta_idx].space, spf_meta_dir[meta_idx].offset);
+
+        /*rw_lock_x_lock(&spf_cache_hash_lock[cache_idx]);
+        HASH_DELETE(spf_meta_dir_t, hash, spf_cache[cache_idx].page_hash,
+                    fold, &spf_meta_dir[meta_idx]);
+        rw_lock_x_unlock(&spf_cache_hash_lock[cache_idx]);
+     */
+        mutex_enter(&spf_meta_dir[meta_idx].mutex);
+        spf_meta_dir[meta_idx].valid = false;
+        mutex_exit(&spf_meta_dir[meta_idx].mutex);
     }
 
     buf_dblwr_flush_buffered_writes();
@@ -2171,6 +2185,12 @@ buf_flush_LRU_tail(void)
     /* mijin */
     /* Flush all pages in the spf_cache. */
     if (srv_use_spf_cache) {
+        if (spf_cache_info->current_block == 0) {
+            fprintf(stderr, "flush spf_cache 1..%lu\n", spf_cache[0].first_free);
+        } else {
+            fprintf(stderr, "flush spf_cache 2..%lu\n", spf_cache[1].first_free);
+        }        
+    
         flush_spf_cache();
     }
     /* end */
@@ -2226,6 +2246,10 @@ buf_flush_LRU_tail(void)
 			MONITOR_LRU_BATCH_PAGES,
 			total_flushed);
 	}
+
+    /* mijin */
+    fprintf(stderr, "end of flush\n");
+    /* end */
 
 	return(total_flushed);
 }

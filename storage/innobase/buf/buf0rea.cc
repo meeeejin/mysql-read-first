@@ -188,10 +188,62 @@ buf_read_page_low(
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
-		*err = fil_io(OS_FILE_READ | wake_later
-			      | ignore_nonexistent_pages,
-			      sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
-			      ((buf_block_t*) bpage)->frame, bpage);
+        /* mijin */
+        fprintf(stderr, "read request = (%lu, %lu)\n",
+                        space, offset);
+
+        if (srv_use_spf_cache) {
+            spf_meta_dir_t* entry = NULL;
+            ulint           fold;
+            ulint           cache_idx;
+            
+            mutex_enter(&spf_cache_info->mutex);
+            cache_idx= spf_cache_info->current_block;
+            mutex_exit(&spf_cache_info->mutex);
+
+            fold = buf_page_address_fold(bpage->space, bpage->offset);
+
+            /* Search spf_cache hash table. */
+            rw_lock_s_lock(&spf_cache_hash_lock[cache_idx]);
+            HASH_SEARCH(hash, spf_cache[cache_idx].page_hash, fold, spf_meta_dir_t*, entry, ut_ad(1),
+                    entry->space == bpage->space && entry->offset == bpage->offset);
+            rw_lock_s_unlock(&spf_cache_hash_lock[cache_idx]);
+
+            if (!entry) {
+                if (cache_idx == 0) {
+                    cache_idx = 1;
+                } else {
+                    cache_idx = 0;
+                }
+
+                rw_lock_s_lock(&spf_cache_hash_lock[cache_idx]);
+                HASH_SEARCH(hash, spf_cache[cache_idx].page_hash, fold, spf_meta_dir_t*, entry,
+                        ut_ad(1), entry->space == bpage->space && entry->offset == bpage->offset);
+                rw_lock_s_unlock(&spf_cache_hash_lock[cache_idx]);
+            }
+
+            /* If the page to read is in the spf_cache and the page is valid, retrieve the page from spf_cache.
+               Else, retrieve the page from the storage. */
+            if (entry && spf_meta_dir[entry->meta_no].valid) {
+                ut_a((entry->space == bpage->space) && (entry->offset == bpage->offset));
+
+                ulint offset = entry->meta_no * sizeof(buf_page_t);
+
+                memcpy(bpage, spf_cache[cache_idx].write_buf + offset, sizeof(buf_page_t));
+                *err = DB_SUCCESS;
+            } else {
+                *err = fil_io(OS_FILE_READ | wake_later
+                        | ignore_nonexistent_pages,
+                        sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
+                        ((buf_block_t*) bpage)->frame, bpage);
+            }
+        } else {
+        /* end */
+            *err = fil_io(OS_FILE_READ | wake_later
+                      | ignore_nonexistent_pages,
+                      sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
+                      ((buf_block_t*) bpage)->frame, bpage);
+        }
 	}
 
 	if (sync) {

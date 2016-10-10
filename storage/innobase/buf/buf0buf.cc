@@ -252,9 +252,10 @@ static const ulint BUF_PAGE_READ_MAX_RETRIES = 100;
 UNIV_INTERN buf_pool_t*	buf_pool_ptr;
 
 /* mijin */
-UNIV_INTERN spf_cache_t*    spf_cache;
-UNIV_INTERN rw_lock_t*      spf_cache_hash_lock;
-UNIV_INTERN spf_meta_dir_t* spf_meta_dir;
+UNIV_INTERN spf_cache_info_t*   spf_cache_info;
+UNIV_INTERN spf_cache_t*        spf_cache;
+UNIV_INTERN spf_meta_dir_t*     spf_meta_dir;
+UNIV_INTERN rw_lock_t*          spf_cache_hash_lock;
 /* end */
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
@@ -1471,46 +1472,54 @@ buf_pool_init(
     /* mijin */
     if (srv_use_spf_cache) {
         ulint size = sizeof(buf_page_t);
+        ulint n_entry;
 
-        /* Create and initialize a cache for single page flush. */
-        spf_cache = (spf_cache_t*) mem_zalloc(sizeof(spf_cache_t));
-
-        /* Initialize general fields. */
-        spf_cache->batch_running = false;
-        spf_cache->use_first_block = true;
-        spf_cache->first_free1 = 0;
-        spf_cache->first_free2 = 0;
-        spf_cache->write_buf1 = NULL;
-        spf_cache->write_buf2 = NULL;
-
+        spf_cache_info = (spf_cache_info_t*) mem_zalloc(sizeof(spf_cache_info_t));
+        
         mutex_create(buf_pool_mutex_key,
-                &spf_cache->mutex, SYNC_BUF_POOL);
+                    &spf_cache_info->mutex, SYNC_BUF_POOL);
+
+        spf_cache_info->current_block = 0;
 
         /* Calculate the number of cache entries of the spf cache. */
-        spf_cache->n_entry = (srv_spf_cache_size / UNIV_PAGE_SIZE) / 2;
+        spf_cache_info->total_entry = srv_spf_cache_size / UNIV_PAGE_SIZE;
         ib_logf(IB_LOG_LEVEL_INFO,
-                "The total number of the page entries of spf_cache = %lu", spf_cache->n_entry * 2);
+                "The total number of the page entries of spf_cache = %lu",
+                spf_cache_info->total_entry);
         
-        /* Initialize the write buffer. */
-        spf_cache->write_buf1 = (buf_page_t*) malloc(size * spf_cache->n_entry);
-        memset(spf_cache->write_buf1, 0, size * spf_cache->n_entry);
+        n_entry = spf_cache_info->total_entry / 2;
+
+        /* Create and initialize a cache for single page flush. */
+        spf_cache = (spf_cache_t*) mem_zalloc(2 * sizeof(spf_cache_t));
+        spf_cache_hash_lock = static_cast<rw_lock_t*>(mem_alloc(2 * sizeof(rw_lock_t)));
+
+        /* Initialize general fields. */
+        for (i = 0; i < 2; i++) {
+            spf_cache[i].first_free = 0;
+            spf_cache[i].write_buf = NULL;
+            spf_cache[i].batch_running = false;
+
+            mutex_create(buf_pool_mutex_key,
+                    &spf_cache[i].mutex, SYNC_BUF_POOL);
+
+            spf_cache[i].write_buf = (buf_page_t*) malloc(size * n_entry);
+            memset(spf_cache[i].write_buf, 0, size * n_entry);
         
-        spf_cache->write_buf2 = (buf_page_t*) malloc(size * spf_cache->n_entry);
-        memset(spf_cache->write_buf2, 0, size * spf_cache->n_entry);
-        
-        /* Create a hash table. */
-        spf_cache->page_hash = ha_create(2 * spf_cache->n_entry,
-                                        srv_n_page_hash_locks,
-                                        MEM_HEAP_FOR_PAGE_HASH,
-                                        SYNC_BUF_PAGE_HASH);
-        
-        /* Create a rw_lock for spf_cache hash table. */
-        spf_cache_hash_lock = static_cast<rw_lock_t*>(mem_alloc(sizeof(rw_lock_t)));
-        rw_lock_create(buf_block_lock_key, spf_cache_hash_lock, SYNC_LEVEL_VARYING);
+            spf_cache[i].page_hash = ha_create(2 * n_entry,
+                                                srv_n_page_hash_locks,
+                                                MEM_HEAP_FOR_PAGE_HASH,
+                                                SYNC_BUF_PAGE_HASH);
+
+            rw_lock_create(buf_block_lock_key, &spf_cache_hash_lock[i], SYNC_LEVEL_VARYING);
+        }
 
         /* Create and initialize a metadata directory. */
-        spf_meta_dir = (spf_meta_dir_t*) malloc(sizeof(spf_meta_dir_t) * spf_cache->n_entry);
-        memset(spf_meta_dir, 0, sizeof(spf_meta_dir_t) * spf_cache->n_entry);
+        spf_meta_dir = (spf_meta_dir_t*) malloc(2 * sizeof(spf_meta_dir_t) * n_entry);
+        memset(spf_meta_dir, 0, 2 * sizeof(spf_meta_dir_t) * n_entry);
+    
+        for (i = 0; i < spf_cache_info->total_entry; i++) {
+            mutex_create(buffer_block_mutex_key, &spf_meta_dir[i].mutex, SYNC_BUF_BLOCK);
+        }
     }
     /* end */
 
@@ -1538,8 +1547,10 @@ buf_pool_free(
     /* mijin */
     if (srv_use_spf_cache) {
         /* Frees metadata directory and cache buffer at shutdown. */
-        ha_clear(spf_cache->page_hash);
-        hash_table_free(spf_cache->page_hash);
+        for (i = 0; i < 2; i++) {
+            ha_clear(spf_cache[i].page_hash);
+            hash_table_free(spf_cache[i].page_hash);
+        }
 
         free(spf_meta_dir);
         mem_free(spf_cache);
