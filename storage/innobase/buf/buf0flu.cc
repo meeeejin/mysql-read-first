@@ -1000,7 +1000,7 @@ buf_flush_write_block_low(
 
             mutex_exit(&spf_cache[cache_idx].mutex);
 
-            buf_page_io_complete(bpage);
+            //buf_page_io_complete(bpage);
         } else {
         /* end */
             fprintf(stderr, "original route\n");
@@ -2140,7 +2140,7 @@ flush_spf_cache(void)
     spf_cache[cache_idx].batch_running = true;
 
     first_free = spf_cache[cache_idx].first_free;
-    write_buf = spf_cache[cache_idx].write_buf;
+    write_buf = (buf_page_t*) spf_cache[cache_idx].write_buf;
     
     mutex_exit(&spf_cache[cache_idx].mutex);
 

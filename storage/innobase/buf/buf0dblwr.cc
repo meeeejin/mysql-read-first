@@ -971,7 +971,12 @@ buf_dblwr_add_to_batch(
 {
 	ulint	zip_size;
 
-	ut_a(buf_page_in_file(bpage));
+    /* mijin */
+	//ut_a(buf_page_in_file(bpage));
+    if (srv_use_spf_cache) {
+        bpage->state = BUF_BLOCK_FILE_PAGE;
+    }
+    /* end */
 
 try_again:
 	mutex_enter(&buf_dblwr->mutex);
@@ -1014,12 +1019,15 @@ try_again:
 		       + zip_size, 0, UNIV_PAGE_SIZE - zip_size);
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
+    fprintf(stderr, "insert complete 1.\n");
 		UNIV_MEM_ASSERT_RW(((buf_block_t*) bpage)->frame,
 				   UNIV_PAGE_SIZE);
 
+    fprintf(stderr, "insert complete 1-2.\n");
 		memcpy(buf_dblwr->write_buf
 		       + UNIV_PAGE_SIZE * buf_dblwr->first_free,
 		       ((buf_block_t*) bpage)->frame, UNIV_PAGE_SIZE);
+    fprintf(stderr, "insert complete 1-3.\n");
 	}
 
 	buf_dblwr->buf_block_arr[buf_dblwr->first_free] = bpage;
@@ -1040,6 +1048,8 @@ try_again:
 	}
 
 	mutex_exit(&(buf_dblwr->mutex));
+
+    fprintf(stderr, "insert complete 2.\n");
 }
 
 /********************************************************************//**
