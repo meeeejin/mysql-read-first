@@ -1023,7 +1023,8 @@ try_again:
 		UNIV_MEM_ASSERT_RW(((buf_block_t*) bpage)->frame,
 				   UNIV_PAGE_SIZE);
 
-    fprintf(stderr, "insert complete 1-2.\n");
+    fprintf(stderr, "insert complete 1-2. %u, %u\n",
+                    bpage->space, bpage->offset);
 		memcpy(buf_dblwr->write_buf
 		       + UNIV_PAGE_SIZE * buf_dblwr->first_free,
 		       ((buf_block_t*) bpage)->frame, UNIV_PAGE_SIZE);

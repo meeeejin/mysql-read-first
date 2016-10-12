@@ -2115,7 +2115,7 @@ flush_spf_cache(void)
     ulint   offset;
     ulint   fold;
     ulint   meta_idx;
-    buf_page_t* write_buf;
+    buf_page_t*   write_buf;
     
     mutex_enter(&spf_cache_info->mutex);
 
@@ -2140,7 +2140,7 @@ flush_spf_cache(void)
     spf_cache[cache_idx].batch_running = true;
 
     first_free = spf_cache[cache_idx].first_free;
-    write_buf = (buf_page_t*) spf_cache[cache_idx].write_buf;
+    write_buf = spf_cache[cache_idx].write_buf;
     
     mutex_exit(&spf_cache[cache_idx].mutex);
 

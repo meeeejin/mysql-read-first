@@ -1474,6 +1474,8 @@ buf_pool_init(
         ulint size = sizeof(buf_page_t);
         ulint n_entry;
 
+        fprintf(stderr, "%lu %lu\n", sizeof(buf_page_t), sizeof(buf_block_t));
+
         spf_cache_info = (spf_cache_info_t*) mem_zalloc(sizeof(spf_cache_info_t));
         
         mutex_create(buf_pool_mutex_key,
