@@ -227,10 +227,13 @@ buf_read_page_low(
             if (entry && spf_meta_dir[entry->meta_no].valid) {
                 ut_a((entry->space == bpage->space) && (entry->offset == bpage->offset));
 
-                ulint offset = entry->meta_no * sizeof(buf_page_t);
+                ulint offset = entry->meta_no * UNIV_PAGE_SIZE;
 
-                memcpy(bpage, spf_cache[cache_idx].write_buf + offset, sizeof(buf_page_t));
+                memcpy(((buf_block_t*) bpage)->frame, spf_cache[cache_idx].write_buf + offset, UNIV_PAGE_SIZE);
                 *err = DB_SUCCESS;
+
+                fprintf(stderr, "Read from spf_cache. (%u, %u)\n",
+                        bpage->space, bpage->offset);
             } else {
                 *err = fil_io(OS_FILE_READ | wake_later
                         | ignore_nonexistent_pages,

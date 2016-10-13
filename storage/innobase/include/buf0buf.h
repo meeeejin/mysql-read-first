@@ -111,9 +111,7 @@ struct spf_cache_t {
                     field and write_buf */
     ulint           first_free; /*!< first free position in write_buf
                     measured in units of buf_page_t */
-    bool            batch_running; /*!< set to TRUE if currently a batch
-                    is being written */
-    buf_page_t*     write_buf;  /*!< write buffer */
+    byte*           write_buf;  /*!< write buffer */
     hash_table_t*   page_hash;  /*!< hash table of buf_page_t or
                     buf_block_t file pages */
 };

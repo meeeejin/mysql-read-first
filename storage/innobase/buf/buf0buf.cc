@@ -1471,7 +1471,6 @@ buf_pool_init(
 
     /* mijin */
     if (srv_use_spf_cache) {
-        ulint size = sizeof(buf_page_t);
         ulint n_entry;
 
         fprintf(stderr, "%lu %lu\n", sizeof(buf_page_t), sizeof(buf_block_t));
@@ -1499,13 +1498,12 @@ buf_pool_init(
         for (i = 0; i < 2; i++) {
             spf_cache[i].first_free = 0;
             spf_cache[i].write_buf = NULL;
-            spf_cache[i].batch_running = false;
 
             mutex_create(buf_pool_mutex_key,
                     &spf_cache[i].mutex, SYNC_BUF_POOL);
 
-            spf_cache[i].write_buf = (buf_page_t*) malloc(size * n_entry);
-            memset(spf_cache[i].write_buf, 0, size * n_entry);
+            spf_cache[i].write_buf = (byte*) malloc(UNIV_PAGE_SIZE * n_entry);
+            memset(spf_cache[i].write_buf, 0, UNIV_PAGE_SIZE * n_entry);
         
             spf_cache[i].page_hash = ha_create(2 * n_entry,
                                                 srv_n_page_hash_locks,

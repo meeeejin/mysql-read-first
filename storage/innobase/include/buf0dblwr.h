@@ -96,7 +96,10 @@ UNIV_INTERN
 void
 buf_dblwr_add_to_batch(
 /*====================*/
-	buf_page_t*	bpage);	/*!< in: buffer block to write */
+	buf_page_t*	bpage,	/*!< in: buffer block to write */
+    /* mijin */
+    byte*       frame);
+    /* end */
 /********************************************************************//**
 Flushes possible buffered writes from the doublewrite memory buffer to disk,
 and also wakes up the aio thread if simulated aio is used. It is very

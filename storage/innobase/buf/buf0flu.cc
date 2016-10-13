@@ -962,7 +962,6 @@ buf_flush_write_block_low(
             ulint meta_idx;
             ulint cache_idx;
             ulint remain;
-            ulint size = sizeof(bpage);
 
             mutex_enter(&spf_cache_info->mutex);
             cache_idx = spf_cache_info->current_block;
@@ -993,7 +992,8 @@ buf_flush_write_block_low(
             bpage->flush_type = BUF_FLUSH_LRU;
 
             /* Copy the target page to the spf cache. */
-            memcpy(spf_cache[cache_idx].write_buf + (meta_idx * size), bpage, size); 
+            memcpy(spf_cache[cache_idx].write_buf + (meta_idx * UNIV_PAGE_SIZE),
+                    ((buf_block_t*) bpage)->frame, UNIV_PAGE_SIZE); 
 
             fprintf(stderr, "Insertion succeeded. %lu - %lu: (space, offset) = (%u, %u)\n",
                     cache_idx, meta_idx, bpage->space, bpage->offset);
@@ -1008,7 +1008,7 @@ buf_flush_write_block_low(
         }
 	} else {
 		ut_ad(!sync);
-		buf_dblwr_add_to_batch(bpage);
+		buf_dblwr_add_to_batch(bpage, 0);
 	}
 
     /* mijin */
@@ -2115,8 +2115,10 @@ flush_spf_cache(void)
     ulint   offset;
     ulint   fold;
     ulint   meta_idx;
-    buf_page_t*   write_buf;
-    
+    byte*   write_buf;
+    buf_page_t* bpage;
+    byte*   frame;
+
     mutex_enter(&spf_cache_info->mutex);
 
     cache_idx = spf_cache_info->current_block;
@@ -2137,18 +2139,28 @@ flush_spf_cache(void)
     }
 
     /* Start batch flush. */
-    spf_cache[cache_idx].batch_running = true;
-
     first_free = spf_cache[cache_idx].first_free;
     write_buf = spf_cache[cache_idx].write_buf;
     
     mutex_exit(&spf_cache[cache_idx].mutex);
 
     offset = cache_idx * (spf_cache_info->total_entry / 2);
-    
+    bpage = (buf_page_t*) malloc(sizeof(buf_page_t));
+    frame = (byte*) malloc(UNIV_PAGE_SIZE);
+
     /* Add all pages in the cache to the doublewrite buffer. */
     for (i = 0; i < first_free; i++) {
-        buf_dblwr_add_to_batch(&write_buf[i]);
+        memcpy(frame, write_buf + (i * UNIV_PAGE_SIZE), UNIV_PAGE_SIZE);
+        memset(bpage, 0, sizeof(buf_page_t));
+
+        bpage->space = mach_read_from_4(frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+        bpage->offset = mach_read_from_4(frame + FIL_PAGE_OFFSET);
+        bpage->state = BUF_BLOCK_FILE_PAGE;
+
+        fprintf(stderr, "before add to batch: (%u, %u)\n",
+                        bpage->space, bpage->offset);
+        
+        buf_dblwr_add_to_batch(bpage, frame);
         
         meta_idx = i + offset;
 
@@ -2165,6 +2177,10 @@ flush_spf_cache(void)
     }
 
     buf_dblwr_flush_buffered_writes();
+    
+    free(bpage);
+    memset(spf_cache[cache_idx].write_buf, 0,
+            UNIV_PAGE_SIZE * (spf_cache_info->total_entry / 2));
 }
 /* end */
 

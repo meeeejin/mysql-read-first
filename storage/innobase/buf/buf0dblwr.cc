@@ -967,16 +967,14 @@ UNIV_INTERN
 void
 buf_dblwr_add_to_batch(
 /*====================*/
-	buf_page_t*	bpage)	/*!< in: buffer block to write */
+	buf_page_t*	bpage,	/*!< in: buffer block to write */
+/* mijin */
+    byte*       frame)
+/* end */
 {
 	ulint	zip_size;
 
-    /* mijin */
-	//ut_a(buf_page_in_file(bpage));
-    if (srv_use_spf_cache) {
-        bpage->state = BUF_BLOCK_FILE_PAGE;
-    }
-    /* end */
+	ut_a(buf_page_in_file(bpage));
 
 try_again:
 	mutex_enter(&buf_dblwr->mutex);
@@ -1019,18 +1017,29 @@ try_again:
 		       + zip_size, 0, UNIV_PAGE_SIZE - zip_size);
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
-    fprintf(stderr, "insert complete 1.\n");
-		UNIV_MEM_ASSERT_RW(((buf_block_t*) bpage)->frame,
-				   UNIV_PAGE_SIZE);
-
-    fprintf(stderr, "insert complete 1-2. %u, %u\n",
+    
+        /* mijin */
+        if (srv_use_spf_cache && frame) {
+            UNIV_MEM_ASSERT_RW(frame, UNIV_PAGE_SIZE);
+            
+            fprintf(stderr, "insert complete 1. %u, %u\n",
                     bpage->space, bpage->offset);
-		memcpy(buf_dblwr->write_buf
-		       + UNIV_PAGE_SIZE * buf_dblwr->first_free,
-		       ((buf_block_t*) bpage)->frame, UNIV_PAGE_SIZE);
-    fprintf(stderr, "insert complete 1-3.\n");
-	}
 
+            memcpy(buf_dblwr->write_buf
+                    + UNIV_PAGE_SIZE * buf_dblwr->first_free,
+                    frame, UNIV_PAGE_SIZE);
+   
+            fprintf(stderr, "insert complete 1-2.\n");
+        } else {
+        /* end */
+            UNIV_MEM_ASSERT_RW(((buf_block_t*) bpage)->frame,
+                    UNIV_PAGE_SIZE);
+
+            memcpy(buf_dblwr->write_buf
+                    + UNIV_PAGE_SIZE * buf_dblwr->first_free,
+                    ((buf_block_t*) bpage)->frame, UNIV_PAGE_SIZE);
+	    }
+    }
 	buf_dblwr->buf_block_arr[buf_dblwr->first_free] = bpage;
 
 	buf_dblwr->first_free++;
@@ -1043,6 +1052,7 @@ try_again:
 	if (buf_dblwr->first_free == srv_doublewrite_batch_size) {
 		mutex_exit(&(buf_dblwr->mutex));
 
+        if (srv_use_spf_cache && frame) fprintf(stderr, "batch flush!!!!\n");
 		buf_dblwr_flush_buffered_writes();
 
 		return;
