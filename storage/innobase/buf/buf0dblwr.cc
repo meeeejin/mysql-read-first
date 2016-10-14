@@ -782,8 +782,9 @@ void
 buf_dblwr_write_block_to_datafile(
 /*==============================*/
 	const buf_page_t*	bpage,	/*!< in: page to write */
-	bool			sync)	/*!< in: true if sync IO
+	bool			sync,	/*!< in: true if sync IO
 					is requested */
+    ulint   spf_idx)
 {
 	ut_a(bpage);
 	ut_a(buf_page_in_file(bpage));
@@ -803,15 +804,32 @@ buf_dblwr_write_block_to_datafile(
 		return;
 	}
 
+    /* mijin */
+    if (srv_use_spf_cache && (spf_idx != 999) && bpage->spf_flush_running) {
+        fprintf(stderr, "block to datafile 1 %lu: (%u, %u)\n",
+                        spf_idx, bpage->space, bpage->offset);
+        byte* spf_buf;
 
-	const buf_block_t* block = (buf_block_t*) bpage;
-	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
-	buf_dblwr_check_page_lsn(block->frame);
+        spf_buf = (byte*) malloc(UNIV_PAGE_SIZE);
+        memcpy(spf_buf, buf_dblwr->write_buf + (spf_idx * UNIV_PAGE_SIZE),
+                UNIV_PAGE_SIZE);
 
-	fil_io(flags, sync, buf_block_get_space(block), 0,
-	       buf_block_get_page_no(block), 0, UNIV_PAGE_SIZE,
-	       (void*) block->frame, (void*) block);
+        fil_io(flags, sync, bpage->space, 0,
+                bpage->offset, 0, UNIV_PAGE_SIZE,
+                (void*) spf_buf, (void*) bpage);
 
+        fprintf(stderr, "block to datafile 2\n");
+        free(spf_buf);
+    } else {
+    /* end */
+        const buf_block_t* block = (buf_block_t*) bpage;
+        ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+        buf_dblwr_check_page_lsn(block->frame);
+
+        fil_io(flags, sync, buf_block_get_space(block), 0,
+               buf_block_get_page_no(block), 0, UNIV_PAGE_SIZE,
+               (void*) block->frame, (void*) block);
+    }
 }
 
 /********************************************************************//**
@@ -872,32 +890,36 @@ try_again:
 	but any threads working on single page flushes are allowed
 	to proceed. */
 	mutex_exit(&buf_dblwr->mutex);
+	
+    write_buf = buf_dblwr->write_buf;
 
-	write_buf = buf_dblwr->write_buf;
+    /* mijin */
+    if (!srv_use_spf_cache) {
+        for (ulint len2 = 0, i = 0;
+                i < buf_dblwr->first_free;
+                len2 += UNIV_PAGE_SIZE, i++) {
 
-	for (ulint len2 = 0, i = 0;
-	     i < buf_dblwr->first_free;
-	     len2 += UNIV_PAGE_SIZE, i++) {
+            const buf_block_t*	block;
 
-		const buf_block_t*	block;
+            block = (buf_block_t*) buf_dblwr->buf_block_arr[i];
 
-		block = (buf_block_t*) buf_dblwr->buf_block_arr[i];
+            if (buf_block_get_state(block) != BUF_BLOCK_FILE_PAGE
+                    || block->page.zip.data) {
+                /* No simple validate for compressed
+                   pages exists. */
+                continue;
+            }
 
-		if (buf_block_get_state(block) != BUF_BLOCK_FILE_PAGE
-		    || block->page.zip.data) {
-			/* No simple validate for compressed
-			pages exists. */
-			continue;
-		}
+            /* Check that the actual page in the buffer pool is
+               not corrupt and the LSN values are sane. */
+            buf_dblwr_check_block(block);
 
-		/* Check that the actual page in the buffer pool is
-		not corrupt and the LSN values are sane. */
-		buf_dblwr_check_block(block);
-
-		/* Check that the page as written to the doublewrite
-		buffer has sane LSN values. */
-		buf_dblwr_check_page_lsn(write_buf + len2);
-	}
+            /* Check that the page as written to the doublewrite
+               buffer has sane LSN values. */
+            buf_dblwr_check_page_lsn(write_buf + len2);
+        }
+    }
+    /* end */
 
 	/* Write out the first block of the doublewrite buffer */
 	len = ut_min(TRX_SYS_DOUBLEWRITE_BLOCK_SIZE,
@@ -923,6 +945,7 @@ try_again:
 	       buf_dblwr->block2, 0, len,
 	       (void*) write_buf, NULL);
 
+fprintf(stderr, "flush 3\n");
 flush:
 	/* increment the doublewrite flushed pages counter */
 	srv_stats.dblwr_pages_written.add(buf_dblwr->first_free);
@@ -948,10 +971,14 @@ flush:
 	the same block twice from two different threads. */
 	ut_ad(first_free == buf_dblwr->first_free);
 	for (ulint i = 0; i < first_free; i++) {
+        fprintf(stderr, "before block to datafile! %lu: (%u, %u)\n",
+                i, buf_dblwr->buf_block_arr[i]->space, buf_dblwr->buf_block_arr[i]->offset);
+
 		buf_dblwr_write_block_to_datafile(
-			buf_dblwr->buf_block_arr[i], false);
+			buf_dblwr->buf_block_arr[i], false, i);
 	}
 
+fprintf(stderr, "flush 4\n");
 	/* Wake possible simulated aio thread to actually post the
 	writes to the operating system. We don't flush the files
 	at this point. We leave it to the IO helper thread to flush
@@ -1022,8 +1049,8 @@ try_again:
         if (srv_use_spf_cache && frame) {
             UNIV_MEM_ASSERT_RW(frame, UNIV_PAGE_SIZE);
             
-            fprintf(stderr, "insert complete 1. %u, %u\n",
-                    bpage->space, bpage->offset);
+            fprintf(stderr, "insert complete 1. %lu: (%u, %u)\n",
+                    buf_dblwr->first_free, bpage->space, bpage->offset);
 
             memcpy(buf_dblwr->write_buf
                     + UNIV_PAGE_SIZE * buf_dblwr->first_free,
@@ -1187,6 +1214,6 @@ retry:
 	/* We know that the write has been flushed to disk now
 	and during recovery we will find it in the doublewrite buffer
 	blocks. Next do the write to the intended position. */
-	buf_dblwr_write_block_to_datafile(bpage, sync);
+	buf_dblwr_write_block_to_datafile(bpage, sync, 999);
 }
 #endif /* !UNIV_HOTBACKUP */
