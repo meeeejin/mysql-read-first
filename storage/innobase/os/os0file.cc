@@ -4503,12 +4503,10 @@ os_aio_linux_dispatch(
 
 	ret = io_submit(array->aio_ctx[io_ctx_index], 1, &iocb);
 
-#if defined(UNIV_AIO_DEBUG)
 	fprintf(stderr,
 		"io_submit[%c] ret[%d]: slot[%p] ctx[%p] seg[%lu]\n",
 		(slot->type == OS_FILE_WRITE) ? 'w' : 'r', ret, slot,
 		array->aio_ctx[io_ctx_index], (ulong) io_ctx_index);
-#endif
 
 	/* io_submit returns number of successfully
 	queued requests or -errno. */

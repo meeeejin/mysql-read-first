@@ -805,7 +805,7 @@ buf_dblwr_write_block_to_datafile(
 	}
 
     /* mijin */
-    if (srv_use_spf_cache && (spf_idx != 999) && bpage->spf_flush_running) {
+    if (srv_use_spf_cache && bpage->spf_flush_running) {
         fprintf(stderr, "block to datafile 1 %lu: (%u, %u)\n",
                         spf_idx, bpage->space, bpage->offset);
         byte* spf_buf;
@@ -816,7 +816,7 @@ buf_dblwr_write_block_to_datafile(
 
         fil_io(flags, sync, bpage->space, 0,
                 bpage->offset, 0, UNIV_PAGE_SIZE,
-                (void*) spf_buf, (void*) bpage);
+                (void*) spf_buf, (void*) ((buf_block_t*) bpage));
 
         fprintf(stderr, "block to datafile 2\n");
         free(spf_buf);
@@ -1214,6 +1214,6 @@ retry:
 	/* We know that the write has been flushed to disk now
 	and during recovery we will find it in the doublewrite buffer
 	blocks. Next do the write to the intended position. */
-	buf_dblwr_write_block_to_datafile(bpage, sync, 999);
+	buf_dblwr_write_block_to_datafile(bpage, sync, 0);
 }
 #endif /* !UNIV_HOTBACKUP */
