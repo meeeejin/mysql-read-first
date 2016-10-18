@@ -4503,10 +4503,12 @@ os_aio_linux_dispatch(
 
 	ret = io_submit(array->aio_ctx[io_ctx_index], 1, &iocb);
 
+#if defined(UNIV_AIO_DEBUG)
 	fprintf(stderr,
 		"io_submit[%c] ret[%d]: slot[%p] ctx[%p] seg[%lu]\n",
 		(slot->type == OS_FILE_WRITE) ? 'w' : 'r', ret, slot,
 		array->aio_ctx[io_ctx_index], (ulong) io_ctx_index);
+#endif
 
 	/* io_submit returns number of successfully
 	queued requests or -errno. */
@@ -4655,6 +4657,8 @@ try_again:
 
 	slot = os_aio_array_reserve_slot(type, array, message1, message2, file,
 					 name, buf, offset, n);
+    fprintf(stderr, "finished io_prep_pwrite\n");
+
 	if (type == OS_FILE_READ) {
 		if (srv_use_native_aio) {
 			os_n_file_reads++;
@@ -5139,8 +5143,10 @@ found:
 
 	if (slot->ret == 0 && slot->n_bytes == (long) slot->len) {
 
+        fprintf(stderr, "success = %d %d %lu\n", slot->ret, slot->n_bytes, slot->len);
 		ret = TRUE;
 	} else {
+        fprintf(stderr, "fail = %d %d %lu\n", slot->ret, slot->n_bytes, slot->len);
 		errno = -slot->ret;
 
 		/* os_file_handle_error does tell us if we should retry

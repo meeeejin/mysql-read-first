@@ -5702,9 +5702,11 @@ fil_io(
 				    offset, len);
 	}
 #else
+    fprintf(stderr, "before os_aio\n");
 	/* Queue the aio request */
 	ret = os_aio(type, mode | wake_later, node->name, node->handle, buf,
 		     offset, len, node, message);
+    fprintf(stderr, "after os_aio\n");
 #endif /* UNIV_HOTBACKUP */
 	ut_a(ret);
 
